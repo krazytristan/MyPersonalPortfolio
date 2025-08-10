@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+/* Full height so canvas and effects fill the screen */
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #000; /* Prevents white flash before animations */
+}
+
+@media print {
+  html, body {
+    background: #fff !important;
+  }
+}
