@@ -1,17 +1,53 @@
 @import "tailwindcss";
 
-/* Full height so canvas and effects fill the screen */
+/* Full height for layout */
 html, body, #root {
   height: 100%;
 }
 
-body {
-  margin: 0;
-  background: #000; /* Prevents white flash before animations */
+/* Base */
+:root {
+  color-scheme: dark; /* Better native controls on dark UI */
 }
 
-@media print {
-  html, body {
-    background: #fff !important;
+html, body {
+  margin: 0;
+  background: #000; /* Prevent white flash before animations */
+}
+
+/* --- Mobile-only: hide scrollbar rails but keep scrolling --- */
+@media (max-width: 767px) {
+  /* Firefox */
+  html, body { scrollbar-width: none; }
+  /* WebKit */
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    width: 0;
+    height: 0;
   }
+  /* iOS momentum scrolling */
+  body { -webkit-overflow-scrolling: touch; }
+}
+
+/* Safe-area helpers */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+}
+
+/* Spin-slow utility */
+@keyframes spin-slow { from { transform: rotate(0) } to { transform: rotate(360deg) } }
+.animate-spin-slow { animation: spin-slow 14s linear infinite; }
+
+/* Respect reduced motion (no heavy animation, keep scroll behavior sane) */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .animate-spin-slow { animation: none !important; }
+}
+
+/* Print */
+@media print {
+  html, body { background: #fff !important; }
 }

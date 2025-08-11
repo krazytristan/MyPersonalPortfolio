@@ -1,29 +1,98 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en" class="dark" data-reduced-motion="false">
   <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/favicon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Tristan Jorge Cuartero — Portfolio</title>
-    <meta name="description" content="Modern animated portfolio with aurora, solar system, and astronaut effects. Created by Tristan Jorge Cuartero." />
-    <meta property="og:title" content="Tristan Jorge Cuartero — Portfolio" />
-    <meta property="og:description" content="Modern animated portfolio with aurora, solar system, and astronaut effects." />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="/preview.png" />
-    <meta name="theme-color" content="#0f172a" />
+
+    <!-- Primary Meta -->
+    <meta name="description" content="Modern animated portfolio with aurora, solar system, and astronaut effects. Created by Tristan Jorge Cuartero.">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="color-scheme" content="dark light">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Tristan Jorge Cuartero — Portfolio">
+    <meta property="og:description" content="Modern animated portfolio with aurora, solar system, and astronaut effects.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="/preview.png">
+    <!-- Use absolute URL if you have one to avoid OG validators warning -->
+    <meta property="og:url" content="/">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Tristan Jorge Cuartero — Portfolio">
+    <meta name="twitter:description" content="Modern animated portfolio with aurora, solar system, and astronaut effects.">
+    <meta name="twitter:image" content="/preview.png">
+
+    <!-- Icons & PWA -->
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+
+    <!-- Prevent white flash before React/Tailwind mount -->
     <style>
-      html, body, #root {
-        height: 100%;
-        margin: 0;
-        padding: 0;
-      }
-      body {
-        background: #000; /* ensures no white flash before React mounts */
-      }
+      html, body, #root { height: 100%; margin: 0; padding: 0; }
+      body { background: #000; }
+      /* Optional fade-in after hydration:
+      html { opacity: 0; transition: opacity .24s ease }
+      html.app-ready { opacity: 1 } */
     </style>
+
+    <!-- Apply saved theme ASAP (avoids FOUC) + robust matchMedia fallback -->
+    <script>
+      (function () {
+        try {
+          var html = document.documentElement;
+
+          // Theme
+          var saved = localStorage.getItem("theme");
+          var prefersDark = (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          var mode = saved || (prefersDark ? "dark" : "light");
+          html.classList.toggle("dark", mode === "dark");
+
+          // Reduced motion mirror
+          if (window.matchMedia) {
+            var mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+            html.setAttribute("data-reduced-motion", String(!!mq.matches));
+
+            var onChange = function (e) {
+              html.setAttribute("data-reduced-motion", String(!!(e.matches)));
+            };
+
+            if (typeof mq.addEventListener === "function") {
+              mq.addEventListener("change", onChange);
+            } else if (typeof mq.addListener === "function") {
+              // Safari < 14
+              mq.addListener(onChange);
+            }
+          }
+        } catch (e) {}
+      })();
+    </script>
+
+    <!-- Minimal, valid JSON-LD (keeps validators quiet) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Tristan Jorge Cuartero — Portfolio",
+        "url": "/",
+        "inLanguage": "en"
+      }
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root" role="main"></div>
+
+    <noscript>
+      <style>
+        .no-js-msg { color: #e5e7eb; background:#0b1020; padding: 1rem; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      </style>
+      <div class="no-js-msg">
+        This site is best experienced with JavaScript enabled. Please enable JavaScript to view the interactive portfolio.
+      </div>
+    </noscript>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
