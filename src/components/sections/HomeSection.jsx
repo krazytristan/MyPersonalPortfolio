@@ -12,25 +12,21 @@ export default function HomeSection({ onResume, onGoProjects }) {
   const rafRef = useRef(null);
   const sectionRef = useRef(null);
 
-  // Mobile: keep scrolling enabled, but hide the visible scrollbar rails
+  // Mobile: hide scrollbar rails (scroll still works)
   useEffect(() => {
-    const isMobile =
-      typeof window !== "undefined" &&
-      window.matchMedia("(max-width: 767px)").matches;
-
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const isMobile = window.matchMedia("(max-width: 767px)").matches;
     if (isMobile) document.documentElement.classList.add("mobile-hide-scrollbar");
     return () => document.documentElement.classList.remove("mobile-hide-scrollbar");
   }, []);
 
-  // Repaint nudge when returning to the tab (fixes rare compositor stalls)
+  // Repaint nudge when tab becomes visible (helps rare compositor stalls)
   useEffect(() => {
     const nudge = () => {
       document.body.style.transform = "translateZ(0)";
       requestAnimationFrame(() => {
         document.body.style.transform = "";
       });
-
-      // briefly lighten heavy backdrop filters to ease recompose
       const host = sectionRef.current;
       if (!host) return;
       host.classList.add("resume-light");
@@ -44,22 +40,30 @@ export default function HomeSection({ onResume, onGoProjects }) {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
 
-  // Smooth 3D tilt (uses rAF to avoid spamming style updates)
+  // Smooth 3D tilt + on-surface light (pointer events + rAF)
   const onMove = (e) => {
+    if (reduced) return;
     const el = cardRef.current;
-    if (!el || reduced) return;
+    if (!el) return;
+    if (typeof e.pointerType === "string" && e.pointerType !== "mouse") return;
 
     cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(() => {
-      const elNow = cardRef.current; // guard if unmounted
-      if (!elNow) return;
-      const r = elNow.getBoundingClientRect();
-      const x = (e.clientX - r.left) / r.width;  // 0..1
-      const y = (e.clientY - r.top) / r.height;  // 0..1
-      const rx = (0.5 - y) * 10;
-      const ry = (x - 0.5) * 10;
-      elNow.style.setProperty("--rx", `${rx}deg`);
-      elNow.style.setProperty("--ry", `${ry}deg`);
+      const r = el.getBoundingClientRect();
+      const nx = (e.clientX - r.left) / r.width;  // 0..1
+      const ny = (e.clientY - r.top) / r.height;  // 0..1
+      const rx = (0.5 - ny) * 10;
+      const ry = (nx - 0.5) * 10;
+
+      // tilt
+      el.style.setProperty("--rx", `${rx}deg`);
+      el.style.setProperty("--ry", `${ry}deg`);
+
+      // on-surface light position & normals
+      el.style.setProperty("--mx", `${e.clientX - r.left}px`);
+      el.style.setProperty("--my", `${e.clientY - r.top}px`);
+      el.style.setProperty("--nx", `${nx}`);
+      el.style.setProperty("--ny", `${ny}`);
     });
   };
 
@@ -69,6 +73,10 @@ export default function HomeSection({ onResume, onGoProjects }) {
     if (!el) return;
     el.style.setProperty("--rx", "0deg");
     el.style.setProperty("--ry", "0deg");
+    el.style.setProperty("--mx", "50%");
+    el.style.setProperty("--my", "50%");
+    el.style.setProperty("--nx", "0.5");
+    el.style.setProperty("--ny", "0.5");
   };
 
   // Cleanup pending rAF on unmount
@@ -81,11 +89,11 @@ export default function HomeSection({ onResume, onGoProjects }) {
       <SolarOverlay className="pointer-events-none absolute inset-0 -z-10 opacity-70" />
 
       <div className="grid md:grid-cols-2 gap-10 items-center">
-        {/* LEFT: animated card */}
+        {/* LEFT: animated intro card with on-surface light */}
         <motion.div
           ref={cardRef}
-          onMouseMove={onMove}
-          onMouseLeave={onLeave}
+          onPointerMove={onMove}
+          onPointerLeave={onLeave}
           initial={reduced ? { opacity: 0 } : { opacity: 0, y: 14, scale: 0.985 }}
           whileInView={reduced ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
           viewport={{ once: true, amount: 0.5 }}
@@ -100,33 +108,26 @@ export default function HomeSection({ onResume, onGoProjects }) {
                   transition: { duration: 6, repeat: Infinity, ease: "easeInOut" },
                 }
           }
-          className="relative rounded-3xl p-8 shadow-2xl ring-1 ring-white/10 bg-white/5 backdrop-blur"
+          className="relative rounded-3xl p-8 shadow-2xl ring-1 ring-white/10 bg-white/5 backdrop-blur cardfx"
           style={{
             transformStyle: "preserve-3d",
             transform:
               "perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateZ(6px)",
+            // tunables for the card light
+            "--mx": "50%",
+            "--my": "50%",
+            "--nx": 0.5,
+            "--ny": 0.5,
+            "--edge-alpha": 0.25,     // 0..1, edge ring strength
+            "--light-rgb": "255,255,255",
+            "--light-strength": 0.42, // 0..1, surface spot strength
+            "--light-size": "240px",  // diameter of spot
+            "--light-blend": "soft-light",
+            "--sheen-strength": 0.12, // specular streak
+            "--sheen-width": "18deg",
           }}
           aria-label="Intro card with Tristan's summary"
         >
-          {/* animated edge glow */}
-          <span
-            aria-hidden
-            className={`pointer-events-none absolute -inset-px rounded-[1.6rem] opacity-50 ${
-              reduced ? "" : "animate-spin-slow"
-            }`}
-            style={{
-              background:
-                "conic-gradient(from 0deg, rgba(99,102,241,.25), rgba(168,85,247,.25), rgba(34,211,238,.25), rgba(99,102,241,.25))",
-              WebkitMask:
-                "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-              WebkitMaskComposite: "xor",
-              maskComposite: "exclude",
-              padding: 1,
-              filter: "blur(6px)",
-              zIndex: 0,
-            }}
-          />
-
           {/* inner content */}
           <div className="relative z-[1]">
             {/* role chips */}
@@ -171,6 +172,7 @@ export default function HomeSection({ onResume, onGoProjects }) {
             {/* CTAs */}
             <div className="mt-6 flex flex-wrap gap-3">
               <motion.button
+                type="button"
                 onClick={onResume}
                 whileHover={reduced ? {} : { y: -2 }}
                 className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
@@ -178,7 +180,9 @@ export default function HomeSection({ onResume, onGoProjects }) {
               >
                 📄 Resume
               </motion.button>
+
               <motion.button
+                type="button"
                 onClick={onGoProjects}
                 whileHover={reduced ? {} : { y: -2 }}
                 className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-white/10 text-white font-semibold hover:bg-white/20 ring-1 ring-white/10"
@@ -186,6 +190,7 @@ export default function HomeSection({ onResume, onGoProjects }) {
               >
                 View Projects
               </motion.button>
+
               <motion.a
                 href="#contact"
                 whileHover={reduced ? {} : { y: -2 }}
@@ -204,13 +209,6 @@ export default function HomeSection({ onResume, onGoProjects }) {
               ))}
             </div>
           </div>
-
-          {/* soft outer halo */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-0 rounded-3xl"
-            style={{ boxShadow: "0 0 120px rgba(99,102,241,.25)" }}
-          />
         </motion.div>
 
         {/* RIGHT: portrait (with gentle float) */}
@@ -233,11 +231,72 @@ export default function HomeSection({ onResume, onGoProjects }) {
         </motion.div>
       </div>
 
-      {/* quick CSS hook to soften heavy filters on resume */}
+      {/* tiny CSS helpers + card surface FX */}
       <style>{`
+        /* slow spin utility (if you want to re-add any spinning rings) */
+        @keyframes spin-slow { from { transform: rotate(0) } to { transform: rotate(360deg) } }
+        .animate-spin-slow { animation: spin-slow 18s linear infinite; }
+
+        /* soften heavy blur filters briefly after tab resumes */
         .resume-light .pointer-events-none[style*="blur"] {
           filter: blur(4px) !important;
         }
+
+        /* hide scrollbar rails on mobile while keeping scroll */
+        .mobile-hide-scrollbar { scrollbar-width: none; }
+        .mobile-hide-scrollbar::-webkit-scrollbar { width: 0; height: 0; }
+
+        /* ===== Card on-surface lighting (no extra DOM) ===== */
+        .cardfx { position: relative; isolation: isolate; }
+        /* Edge ring + specular sheen */
+        .cardfx::before {
+          content: "";
+          position: absolute; inset: 0;
+          border-radius: 1.5rem; /* rounded-3xl */
+          pointer-events: none;
+          /* edge ring (conic), tinted & soft */
+          background:
+            conic-gradient(
+              from 0deg,
+              rgba(99,102,241,var(--edge-alpha)) 0deg,
+              rgba(168,85,247,var(--edge-alpha)) 120deg,
+              rgba(34,211,238,var(--edge-alpha)) 240deg,
+              rgba(99,102,241,var(--edge-alpha)) 360deg
+            );
+          -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          -webkit-mask-composite: xor; mask-composite: exclude;
+          padding: 1px; filter: blur(6px);
+          opacity: 0.9; z-index: 0;
+          /* subtle sheen streak aligned with Y tilt */
+          mix-blend-mode: screen;
+          background-blend-mode: screen;
+        }
+        /* Cursor-follow spot light that lives ON the card */
+        .cardfx::after {
+          content: "";
+          position: absolute; inset: 0;
+          border-radius: 1.5rem;
+          pointer-events: none;
+          background:
+            radial-gradient(
+              circle at var(--mx, 50%) var(--my, 50%),
+              rgba(var(--light-rgb), calc(var(--light-strength) * 0.95)) 0%,
+              rgba(var(--light-rgb), calc(var(--light-strength) * 0.55)) 14%,
+              rgba(var(--light-rgb), calc(var(--light-strength) * 0.22)) 28%,
+              rgba(var(--light-rgb), 0) 44%
+            );
+          background-size: var(--light-size) var(--light-size);
+          background-repeat: no-repeat;
+          mix-blend-mode: var(--light-blend, soft-light);
+          filter: blur(10px);
+          opacity: 1;
+          transition: opacity 120ms ease, filter 120ms ease;
+          z-index: 1;
+        }
+
+        /* Touch & reduced-motion: fade out dynamic effects */
+        @media (pointer: coarse) { .cardfx::after { opacity: 0 !important; } }
+        @media (prefers-reduced-motion: reduce) { .cardfx::after { opacity: 0 !important; } }
       `}</style>
     </section>
   );

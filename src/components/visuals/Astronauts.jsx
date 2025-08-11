@@ -2,14 +2,30 @@ import { motion, useAnimationControls } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import usePrefersReducedMotion from "../../hooks/usePrefersReducedMotion";
 
+/**
+ * Astronauts (v2)
+ * - Orbiting SVG sprites with optional parallax + trails + twinkling starfield.
+ * - Pass `cursor={{x,y}}` from a parent (optional) to add subtle parallax.
+ */
 export default function Astronauts({
   className = "",
-  reducedMotion,              // optional override; defaults to hook
+  reducedMotion,                 // optional override; defaults to hook
   hideOnMobile = true,
   zIndex = 12,
   center = { x: "50%", y: "50%" },
-  items,
+  items,                          // explicit array of configs OR auto-gen via count
+  count = 3,                      // used only when items is not provided
+  radiusBase = 220,               // base orbit radius for auto-gen
+  radiusJitter = 120,             // randomness around base
   showStars = true,
+  starOpacity = 0.16,
+  starTwinkle = true,
+  cursor = null,                  // {x,y} optional parallax source
+  parallax = 10,                  // px movement range for parallax (0 disables)
+  glowColor = "59,130,246",       // rgb for drop shadow
+  trail = true,                   // enable tiny tail behind each astronaut
+  floatAmp = 6,                   // px bob amplitude
+  floatDur = 6,                   // seconds for one bob cycle
 }) {
   const prefersReduced = usePrefersReducedMotion();
   const rm = typeof reducedMotion === "boolean" ? reducedMotion : prefersReduced;
@@ -17,10 +33,9 @@ export default function Astronauts({
   const [isMobile, setIsMobile] = useState(false);
   const [active, setActive] = useState(true);
 
-  // Live mobile detection + tab visibility handling
+  // Live mobile detection + tab visibility
   useEffect(() => {
     if (typeof window === "undefined") return;
-
     const mq = window.matchMedia("(max-width: 640px)");
     const apply = () => setIsMobile(!!mq.matches);
     apply();
@@ -28,14 +43,14 @@ export default function Astronauts({
     const onVis = () => setActive(document.visibilityState === "visible");
     document.addEventListener("visibilitychange", onVis);
 
-    if (typeof mq.addEventListener === "function") {
+    if (mq.addEventListener) {
       mq.addEventListener("change", apply);
       return () => {
         mq.removeEventListener("change", apply);
         document.removeEventListener("visibilitychange", onVis);
       };
-    } else if (typeof mq.addListener === "function") {
-      mq.addListener(apply); // Safari <14
+    } else if (mq.addListener) {
+      mq.addListener(apply);
       return () => {
         mq.removeListener(apply);
         document.removeEventListener("visibilitychange", onVis);
@@ -45,15 +60,30 @@ export default function Astronauts({
 
   if (rm || (hideOnMobile && isMobile) || !active) return null;
 
-  const defaults = useMemo(
-    () =>
-      items ?? [
-        { size: 72, r: 240, speed: 0.22, delay: 0.0, ellipse: 1, glow: 0.38 },
-        { size: 56, r: 300, speed: -0.16, delay: 0.6, ellipse: 0.85, glow: 0.32 },
-        { size: 46, r: 180, speed: 0.30, delay: 1.2, ellipse: 1.15, glow: 0.28 },
-      ],
-    [items]
-  );
+  // Optional parallax, computed once per render (no listeners here)
+  let px = 0, py = 0;
+  if (cursor && typeof window !== "undefined" && parallax > 0) {
+    const nx = cursor.x / (window.innerWidth || 1) - 0.5;   // -0.5..0.5
+    const ny = cursor.y / (window.innerHeight || 1) - 0.5;
+    px = nx * parallax;
+    py = ny * parallax * 0.7;
+  }
+
+  // Build item list (explicit or auto-generated)
+  const defaults = useMemo(() => {
+    if (Array.isArray(items) && items.length) return items;
+    const arr = [];
+    for (let i = 0; i < count; i++) {
+      const s = [72, 56, 46][i % 3] ?? Math.max(36, 72 - i * 6);
+      const r = radiusBase + (Math.random() * 2 - 1) * radiusJitter;
+      const speed = (i % 2 === 0 ? 1 : -1) * (0.18 + Math.random() * 0.16);
+      const delay = i * 0.6;
+      const ellipse = 0.9 + (Math.random() * 0.4 - 0.2);
+      const glow = 0.26 + Math.random() * 0.12;
+      arr.push({ size: s, r, speed, delay, ellipse, glow });
+    }
+    return arr;
+  }, [items, count, radiusBase, radiusJitter]);
 
   return (
     <div
@@ -61,22 +91,33 @@ export default function Astronauts({
       style={{ zIndex, contain: "layout style paint" }}
       aria-hidden="true"
     >
-      {showStars && <Starfield opacity={0.15} />}
-      {defaults.map((a, i) => (
-        <OrbitSprite key={i} center={center} cfg={a} isActive={active} />
+      {showStars && <Starfield opacity={starOpacity} twinkle={starTwinkle} parallax={{ x: px * 0.3, y: py * 0.2 }} />}
+
+      {defaults.map((cfg, i) => (
+        <OrbitSprite
+          key={i}
+          center={center}
+          cfg={cfg}
+          isActive={active}
+          px={px}
+          py={py}
+          glowColor={glowColor}
+          trail={trail}
+          floatAmp={floatAmp}
+          floatDur={floatDur}
+        />
       ))}
     </div>
   );
 }
 
-function OrbitSprite({ center, cfg, isActive }) {
+function OrbitSprite({ center, cfg, isActive, px, py, glowColor, trail, floatAmp, floatDur }) {
   const { size, r, speed = 0.2, delay = 0, ellipse = 1, glow = 0.35 } = cfg;
-  const dur = 40 / Math.max(Math.abs(speed), 0.01);
+  const dur = 40 / Math.max(Math.abs(speed), 0.01); // full orbit
 
   const spin = useAnimationControls();
   const counter = useAnimationControls();
 
-  // Start/stop animations based on visibility
   useEffect(() => {
     if (!isActive) {
       spin.stop();
@@ -108,6 +149,7 @@ function OrbitSprite({ center, cfg, isActive }) {
         marginLeft: -size / 2,
         marginTop: -size / 2,
         willChange: "transform",
+        transform: `translate3d(${px}px, ${py}px, 0)`,
       }}
       animate={spin}
     >
@@ -116,12 +158,33 @@ function OrbitSprite({ center, cfg, isActive }) {
           animate={counter}
           style={{
             willChange: "transform",
-            filter: `drop-shadow(0 10px 30px rgba(59,130,246,${glow}))`,
+            filter: `drop-shadow(0 10px 30px rgba(${glowColor},${glow}))`,
           }}
         >
+          {/* simple trail (optional) */}
+          {trail && (
+            <div
+              aria-hidden
+              style={{
+                position: "absolute",
+                inset: 0,
+                transform: "translate(-40%, 20%) scale(1.1, 0.9)",
+                filter: "blur(10px)",
+                opacity: 0.45,
+                mixBlendMode: "screen",
+                background:
+                  "radial-gradient(20% 34% at 30% 52%, rgba(255,255,255,.28), rgba(255,255,255,0) 70%)," +
+                  "radial-gradient(26% 40% at 14% 58%, rgba(185,210,255,.22), rgba(185,210,255,0) 80%)",
+              }}
+            />
+          )}
+
           <motion.div
-            animate={{ y: [0, -6, 0, 4, 0], rotateZ: [-1.5, 1.5, -1.2, 1.2, -1.5] }}
-            transition={{ duration: 6, ease: "easeInOut", repeat: Infinity, delay }}
+            animate={{
+              y: [0, -floatAmp, 0, floatAmp * 0.7, 0],
+              rotateZ: [-1.4, 1.4, -1.1, 1.1, -1.4],
+            }}
+            transition={{ duration: floatDur, ease: "easeInOut", repeat: Infinity, delay }}
           >
             <AstronautSVG />
           </motion.div>
@@ -131,7 +194,7 @@ function OrbitSprite({ center, cfg, isActive }) {
   );
 }
 
-/* Full color astronaut */
+/** Full color astronaut SVG with a tiny halo */
 function AstronautSVG() {
   return (
     <svg viewBox="0 0 64 64" width="100%" height="100%" aria-hidden="true">
@@ -141,19 +204,18 @@ function AstronautSVG() {
           <stop offset="100%" stopColor="white" stopOpacity="0" />
         </radialGradient>
       </defs>
-      {/* glow halo */}
       <circle cx="32" cy="32" r="28" fill="url(#halo)" />
 
       {/* helmet */}
       <circle cx="32" cy="18" r="11" fill="#d9d9d9" stroke="#b3b3b3" strokeWidth="2" />
       <circle cx="32" cy="18" r="9" fill="#c4973f" stroke="#8c6e2f" strokeWidth="1.5" />
-      <circle cx="28" cy="16" r="1.5" fill="white" opacity="0.8" />
+      <circle cx="28" cy="16" r="1.5" fill="white" opacity="0.85" />
 
       {/* body */}
       <rect x="20" y="28" width="24" height="18" rx="6" fill="#e6e6e6" stroke="#b3b3b3" strokeWidth="2" />
       <rect x="24" y="30" width="16" height="8" rx="2" fill="#1f2937" />
 
-      {/* red stripes on arms */}
+      {/* arms stripes */}
       <path d="M20 32c-7 1-7 11 0 14" stroke="#e63946" strokeWidth="2" fill="none" />
       <path d="M44 32c7 1 7 11 0 14" stroke="#e63946" strokeWidth="2" fill="none" />
 
@@ -168,25 +230,37 @@ function AstronautSVG() {
   );
 }
 
-function Starfield({ opacity = 0.15 }) {
+/** GPU-friendly starfield with gentle twinkle + optional parallax */
+function Starfield({ opacity = 0.15, twinkle = true, parallax = { x: 0, y: 0 } }) {
   return (
     <div
       className="absolute inset-0"
       style={{
         opacity,
-        willChange: "opacity",
+        willChange: "transform, opacity",
+        transform: `translate3d(${parallax.x || 0}px, ${parallax.y || 0}px, 0)`,
         backgroundImage:
-          "radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,.9), transparent 60%)," +
-          "radial-gradient(1px 1px at 80% 20%, rgba(255,255,255,.7), transparent 60%)," +
-          "radial-gradient(1px 1px at 60% 70%, rgba(255,255,255,.8), transparent 60%)," +
-          "radial-gradient(1px 1px at 30% 80%, rgba(255,255,255,.6), transparent 60%)," +
-          "radial-gradient(1px 1px at 50% 50%, rgba(255,255,255,.9), transparent 60%)",
+          // three layers at different densities for a bit of depth
+          "radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,.95), transparent 60%)," +
+          "radial-gradient(1px 1px at 80% 20%, rgba(255,255,255,.75), transparent 60%)," +
+          "radial-gradient(1px 1px at 60% 70%, rgba(255,255,255,.85), transparent 60%)," +
+          "radial-gradient(1px 1px at 15% 75%, rgba(255,255,255,.65), transparent 60%)," +
+          "radial-gradient(1px 1px at 35% 55%, rgba(255,255,255,.9), transparent 60%)," +
+          "radial-gradient(1px 1px at 50% 50%, rgba(255,255,255,.85), transparent 60%)",
         backgroundRepeat: "no-repeat",
         backgroundSize: "100% 100%",
-        /* tiny blur looks nice but can trigger heavy recompose on resume; keep minimal */
         filter: "blur(.2px)",
+        animation: twinkle ? "stars 6s ease-in-out infinite" : "none",
       }}
       aria-hidden="true"
-    />
+    >
+      <style>{`
+        @keyframes stars {
+          0%   { opacity: ${opacity}; }
+          50%  { opacity: ${Math.max(0.08, opacity - 0.05)}; }
+          100% { opacity: ${opacity}; }
+        }
+      `}</style>
+    </div>
   );
 }
