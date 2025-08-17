@@ -22,17 +22,17 @@ import AboutSection from "../components/sections/AboutSection";
 import ProjectsSection from "../components/sections/ProjectsSection";
 import SkillsSection from "../components/sections/SkillsSection";
 import ContactSection from "../components/sections/ContactSection";
-import ContactCard from "../components/sections/ContactCard";
 
 /* Modal */
 import ResumeModal from "../components/modals/ResumeModal";
 
 /* data */
-import projectsData from "../data/projects";
+import projectsDataRaw from "../data/projects";
 
 export default function Portfolio() {
   /* ----------------------------- NAV / SECTION STATE ---------------------------- */
-  const sections = ["home", "about", "projects", "skills", "contact"];
+  const sections = useMemo(() => ["home", "about", "projects", "skills", "contact"], []);
+  const reducedMotion = usePrefersReducedMotion();
 
   const hashToSection = (h) => {
     const clean = (h || "").replace("#", "");
@@ -43,7 +43,6 @@ export default function Portfolio() {
     typeof window !== "undefined" ? hashToSection(window.location.hash) : "home"
   );
   const [scrolled, setScrolled] = useState(false);
-  const [cursor, setCursor] = useState({ x: 0, y: 0 });
   const [openNav, setOpenNav] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
   const [flashKey, setFlashKey] = useState(0);
@@ -57,9 +56,12 @@ export default function Portfolio() {
     };
   }, []);
 
-  // Scroll shadow on navbar
+  // Scroll shadow on navbar (kept in case the design later allows scroll)
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 6);
+    const onScroll = () => {
+      if (typeof window === "undefined") return;
+      setScrolled(window.scrollY > 6);
+    };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -71,12 +73,13 @@ export default function Portfolio() {
     const onHash = () => setActive(hashToSection(window.location.hash));
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, []);
+  }, [sections]);
 
+  // Push current section into the hash (without scrolling)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const nextHash = `#${active}`;
-    if (window.location.hash !== nextHash) history.replaceState(null, "", nextHash);
+    if (window.location.hash !== nextHash) window.history.replaceState(null, "", nextHash);
   }, [active]);
 
   const openSection = (id) => {
@@ -85,10 +88,15 @@ export default function Portfolio() {
     setFlashKey((k) => k + 1); // flash on change
   };
 
-  // Keyboard shortcuts (1..5, ← →)
+  // Keyboard shortcuts (1..5, ← →), disabled when modal/menu open
   useEffect(() => {
     const onKey = (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (resumeOpen || openNav) return;
+
+      const tag = (e.target && e.target.tagName) || "";
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(tag)) return;
+
       const idx = sections.indexOf(active);
       if (e.key === "ArrowRight") {
         openSection(sections[(idx + 1) % sections.length]);
@@ -100,29 +108,44 @@ export default function Portfolio() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [active]);
-
-  /* -------------------------------- QUICK FACTS -------------------------------- */
-  const quickFacts = useMemo(
-    () => [
-      { emoji: "👨‍💻", title: "5+ Years Coding", sub: "Full Stack, AI/ML, Web Apps" },
-      { emoji: "🎓", title: "Educator", sub: "Teaching IT & CS since 2018" },
-      { emoji: "🚩", title: "Batangas, PH", sub: "Based in Lipa City" },
-    ],
-    []
-  );
+  }, [active, sections, resumeOpen, openNav]);
 
   /* --------------------------------- PROJECTS --------------------------------- */
+  const projectsData = Array.isArray(projectsDataRaw) ? projectsDataRaw : [];
   const [filter, setFilter] = useState("All");
-  const tags = ["All", ...Array.from(new Set(projectsData.flatMap((p) => p.tags)))];
-  const projects = projectsData.filter((p) => filter === "All" || p.tags.includes(filter));
 
-  const reducedMotion = usePrefersReducedMotion();
+  const tags = useMemo(
+    () => ["All", ...Array.from(new Set(projectsData.flatMap((p) => p.tags || [])))],
+    [projectsData]
+  );
+
+  const projects = useMemo(
+    () => projectsData.filter((p) => filter === "All" || (p.tags || []).includes(filter)),
+    [projectsData, filter]
+  );
+
+  /* ---------------------------- CURSOR (for Aurora) ---------------------------- */
+  const cursorRef = useRef({ x: 0, y: 0 });
+  const rafRef = useRef(0);
+  const [, forceRerender] = useState(0); // lightweight tick to refresh Aurora on rAF
+
+  const onMouseMove = (e) => {
+    cursorRef.current = { x: e.clientX, y: e.clientY };
+    if (rafRef.current) return; // coalesce to next frame
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = 0;
+      forceRerender((t) => (t + 1) % 10);
+    });
+  };
+
+  useEffect(() => () => rafRef.current && cancelAnimationFrame(rafRef.current), []);
+
+  const cursor = cursorRef.current;
 
   return (
     <div
       className="min-h-screen h-screen bg-black text-zinc-100 relative overflow-hidden select-none"
-      onMouseMove={(e) => setCursor({ x: e.clientX, y: e.clientY })}
+      onMouseMove={onMouseMove}
     >
       {/* Global style tag for keyframes */}
       <style>{globalStyles}</style>
@@ -166,7 +189,7 @@ export default function Portfolio() {
               <button
                 onClick={() => openSection("home")}
                 className="group inline-flex items-center gap-2"
-                aria-label="Go to home"
+                aria-label="Go to Home"
               >
                 <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow">
                   TJ
@@ -231,7 +254,7 @@ export default function Portfolio() {
                       key={id}
                       onClick={() => openSection(id)}
                       className={`px-3 py-2 rounded-lg text-sm font-semibold ${
-                        active === id ? "text-indigo-300 bg:white/5" : "hover:bg-white/5"
+                        active === id ? "text-indigo-300 bg-white/5" : "hover:bg-white/5"
                       }`}
                     >
                       <GradientText small>{id[0].toUpperCase() + id.slice(1)}</GradientText>
@@ -255,14 +278,16 @@ export default function Portfolio() {
       <div className="h-24" />
 
       {/* SECTION STAGE (no scroll; crossfade) */}
-      <main id="content" className="mx-auto max-w-6xl px-4 h-[calc(100vh-7.5rem)] grid place-items-center">
+      <main
+        id="content"
+        className="mx-auto max-w-6xl px-4 h-[calc(100vh-7.5rem)] grid place-items-center"
+        // helps avoid focus getting trapped behind visuals
+        role="main"
+      >
         <AnimatePresence mode="wait">
           {active === "home" && (
             <Section key="home" reducedMotion={reducedMotion}>
-              <HomeSection
-                onResume={() => setResumeOpen(true)}
-                onGoProjects={() => openSection("projects")}
-              />
+              <HomeSection onResume={() => setResumeOpen(true)} onGoProjects={() => openSection("projects")} />
             </Section>
           )}
           {active === "about" && (
@@ -278,12 +303,7 @@ export default function Portfolio() {
           )}
           {active === "projects" && (
             <Section key="projects" reducedMotion={reducedMotion}>
-              <ProjectsSection
-                tags={tags}
-                filter={filter}
-                setFilter={setFilter}
-                projects={projects}
-              />
+              <ProjectsSection tags={tags} filter={filter} setFilter={setFilter} projects={projects} />
             </Section>
           )}
           {active === "skills" && (

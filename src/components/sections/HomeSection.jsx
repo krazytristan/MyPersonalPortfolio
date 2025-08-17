@@ -16,13 +16,15 @@ export default function HomeSection({ onResume, onGoProjects }) {
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
     const isMobile = window.matchMedia("(max-width: 767px)").matches;
-    if (isMobile) document.documentElement.classList.add("mobile-hide-scrollbar");
-    return () => document.documentElement.classList.remove("mobile-hide-scrollbar");
+    const root = document.documentElement;
+    if (isMobile) root.classList.add("mobile-hide-scrollbar");
+    return () => root.classList.remove("mobile-hide-scrollbar");
   }, []);
 
   // Repaint nudge when tab becomes visible (helps rare compositor stalls)
   useEffect(() => {
     const nudge = () => {
+      // force a tiny composite without layout thrash
       document.body.style.transform = "translateZ(0)";
       requestAnimationFrame(() => {
         document.body.style.transform = "";
@@ -46,10 +48,11 @@ export default function HomeSection({ onResume, onGoProjects }) {
     const el = cardRef.current;
     if (!el) return;
 
-    // Only react to mouse-type pointers
-    if (typeof e.pointerType === "string" && e.pointerType !== "mouse") return;
+    // Only react to mouse-like pointers; safely handle undefined pointerType
+    const pt = /** @type {PointerEvent|MouseEvent} */ (e).pointerType;
+    if (typeof pt === "string" && pt !== "mouse") return;
 
-    cancelAnimationFrame(rafRef.current);
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(() => {
       const r = el.getBoundingClientRect();
       const x = (e.clientX - r.left) / r.width;  // 0..1
@@ -62,7 +65,7 @@ export default function HomeSection({ onResume, onGoProjects }) {
   };
 
   const onLeave = () => {
-    cancelAnimationFrame(rafRef.current);
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
     const el = cardRef.current;
     if (!el) return;
     el.style.setProperty("--rx", "0deg");
@@ -70,7 +73,11 @@ export default function HomeSection({ onResume, onGoProjects }) {
   };
 
   // Cleanup pending rAF on unmount
-  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
 
   return (
     <section ref={sectionRef} className="relative">
@@ -93,16 +100,16 @@ export default function HomeSection({ onResume, onGoProjects }) {
           animate={
             reduced
               ? undefined
-              : {
-                  y: [0, -3, 0, -2, 0],
-                  transition: { duration: 6, repeat: Infinity, ease: "easeInOut" },
-                }
+              : { y: [0, -3, 0, -2, 0], transition: { duration: 6, repeat: Infinity, ease: "easeInOut" } }
           }
           className="relative rounded-3xl p-8 shadow-2xl ring-1 ring-white/10 bg-white/5 backdrop-blur"
           style={{
             transformStyle: "preserve-3d",
+            // Set defaults so first paint matches SSR and avoids jumps
+            "--rx": "0deg",
+            "--ry": "0deg",
             transform:
-              "perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateZ(6px)",
+              "perspective(900px) rotateX(var(--rx)) rotateY(var(--ry)) translateZ(6px)",
           }}
           aria-label="Intro card with Tristan's summary"
         >
@@ -223,10 +230,7 @@ export default function HomeSection({ onResume, onGoProjects }) {
           animate={
             reduced
               ? undefined
-              : {
-                  y: [0, -8, 0, -5, 0],
-                  transition: { duration: 8, repeat: Infinity, ease: "easeInOut" },
-                }
+              : { y: [0, -8, 0, -5, 0], transition: { duration: 8, repeat: Infinity, ease: "easeInOut" } }
           }
           className="relative"
           aria-hidden="true"
@@ -247,12 +251,8 @@ export default function HomeSection({ onResume, onGoProjects }) {
         }
 
         /* hide scrollbar rails on mobile while keeping scroll */
-        .mobile-hide-scrollbar {
-          scrollbar-width: none;
-        }
-        .mobile-hide-scrollbar::-webkit-scrollbar {
-          width: 0; height: 0;
-        }
+        .mobile-hide-scrollbar { scrollbar-width: none; }
+        .mobile-hide-scrollbar::-webkit-scrollbar { width: 0; height: 0; }
       `}</style>
     </section>
   );

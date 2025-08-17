@@ -5,44 +5,66 @@ export default function HeroPortrait({
   className = "",
   src = "/images/BSU_6102.jpg",
   alt = "Tristan portrait",
+  heightClass = "h-[360px] sm:h-[420px] md:h-[480px]",
 }) {
-  const ref = useRef(null);
-  const glowRef = useRef(null);
+  const cardRef = useRef(null);   // element that tilts
+  const imgRef = useRef(null);    // the <img> (for shadow/transition only)
+  const glowRef = useRef(null);   // cursor glow
+  const rafRef = useRef(0);
   const [canAnimate, setCanAnimate] = useState(true);
 
+  // Respect reduced-motion & ignore coarse pointers (touch)
   useEffect(() => {
-    const prefersReduced =
-      typeof window !== "undefined" &&
-      window.matchMedia &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    const isTouch =
-      typeof window !== "undefined" &&
-      window.matchMedia &&
-      window.matchMedia("(pointer: coarse)").matches;
-
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const isTouch = window.matchMedia("(pointer: coarse)").matches;
     setCanAnimate(!prefersReduced && !isTouch);
   }, []);
 
-  const onMove = (e) => {
+  // Mouse-only, rAF-throttled tilt using CSS variables to avoid hydration jumps
+  const onPointerMove = (e) => {
     if (!canAnimate) return;
-    const el = ref.current;
+    // Only react to mouse-like pointers
+    if (typeof e.pointerType === "string" && e.pointerType !== "mouse") return;
+
+    const card = cardRef.current;
     const glow = glowRef.current;
-    if (!el || !glow) return;
-    const rect = el.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const rx = (y / rect.height - 0.5) * -8; // tilt X
-    const ry = (x / rect.width - 0.5) * 8;   // tilt Y
-    el.style.transform = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) translateZ(6px)`;
-    glow.style.left = `${x}px`;
-    glow.style.top = `${y}px`;
+    if (!card || !glow) return;
+
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      const r = card.getBoundingClientRect();
+      const x = e.clientX - r.left;
+      const y = e.clientY - r.top;
+
+      const nx = x / r.width;   // 0..1
+      const ny = y / r.height;  // 0..1
+
+      const rx = (0.5 - ny) * 10; // tilt X (-5..5-ish)
+      const ry = (nx - 0.5) * 10; // tilt Y
+
+      card.style.setProperty("--rx", `${rx}deg`);
+      card.style.setProperty("--ry", `${ry}deg`);
+
+      glow.style.left = `${x}px`;
+      glow.style.top = `${y}px`;
+    });
   };
 
-  const onLeave = () => {
-    const el = ref.current;
-    if (el) el.style.transform = "perspective(900px) rotateX(0deg) rotateY(0deg) translateZ(0)";
+  const onPointerLeave = () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    const card = cardRef.current;
+    if (!card) return;
+    card.style.setProperty("--rx", "0deg");
+    card.style.setProperty("--ry", "0deg");
   };
+
+  // Cleanup pending rAF
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
 
   return (
     <motion.div
@@ -64,10 +86,19 @@ export default function HeroPortrait({
       />
 
       <div
-        onMouseMove={onMove}
-        onMouseLeave={onLeave}
+        ref={cardRef}
+        onPointerMove={onPointerMove}
+        onPointerLeave={onPointerLeave}
         className="relative rounded-3xl"
-        style={{ transformStyle: "preserve-3d", willChange: "transform" }}
+        style={{
+          transformStyle: "preserve-3d",
+          willChange: "transform",
+          // CSS vars ensure first paint matches SSR (no transform jump)
+          "--rx": "0deg",
+          "--ry": "0deg",
+          transform:
+            "perspective(900px) rotateX(var(--rx)) rotateY(var(--ry)) translateZ(6px)",
+        }}
       >
         {/* subtle cursor-follow glow (desktop only) */}
         <span
@@ -78,16 +109,18 @@ export default function HeroPortrait({
             background:
               "radial-gradient(90px 90px at center, rgba(185,210,255,0.35), rgba(0,0,0,0))",
             filter: "blur(10px)",
+            willChange: "left, top",
           }}
+          aria-hidden
         />
 
         <img
-          ref={ref}
+          ref={imgRef}
           src={src}
           alt={alt}
-          className="rounded-3xl object-cover w-full h-[360px] sm:h-[420px] md:h-[480px] select-none"
+          className={`rounded-3xl object-cover w-full ${heightClass} select-none`}
           style={{
-            transition: "transform 120ms ease",
+            transition: "transform 150ms ease, box-shadow 200ms ease",
             boxShadow: "0 20px 80px rgba(59,130,246,0.18)",
           }}
           loading="eager"

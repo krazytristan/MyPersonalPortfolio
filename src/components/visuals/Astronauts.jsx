@@ -1,11 +1,12 @@
 import { motion, useAnimationControls } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import usePrefersReducedMotion from "../../hooks/usePrefersReducedMotion";
 
 /**
- * Astronauts (v2)
- * - Orbiting SVG sprites with optional parallax + trails + twinkling starfield.
- * - Pass `cursor={{x,y}}` from a parent (optional) to add subtle parallax.
+ * Astronauts (v2.1)
+ * - Fix SSR hydration mismatch from Math.random by generating items on client only (once).
+ * - Clean animation teardown; prevent work when tab is hidden or on mobile (optional).
+ * - Parallax remains prop-driven; no event listeners inside.
  */
 export default function Astronauts({
   className = "",
@@ -33,7 +34,7 @@ export default function Astronauts({
   const [isMobile, setIsMobile] = useState(false);
   const [active, setActive] = useState(true);
 
-  // Live mobile detection + tab visibility
+  // --- Live mobile detection + tab visibility (no memory leaks on older browsers) ---
   useEffect(() => {
     if (typeof window === "undefined") return;
     const mq = window.matchMedia("(max-width: 640px)");
@@ -45,22 +46,20 @@ export default function Astronauts({
 
     if (mq.addEventListener) {
       mq.addEventListener("change", apply);
-      return () => {
-        mq.removeEventListener("change", apply);
-        document.removeEventListener("visibilitychange", onVis);
-      };
     } else if (mq.addListener) {
       mq.addListener(apply);
-      return () => {
-        mq.removeListener(apply);
-        document.removeEventListener("visibilitychange", onVis);
-      };
     }
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      if (mq.removeEventListener) mq.removeEventListener("change", apply);
+      else if (mq.removeListener) mq.removeListener(apply);
+    };
   }, []);
 
+  // Respect reduced motion / mobile preference / hidden tab
   if (rm || (hideOnMobile && isMobile) || !active) return null;
 
-  // Optional parallax, computed once per render (no listeners here)
+  // --- Parallax (prop→style; no listeners here) ---
   let px = 0, py = 0;
   if (cursor && typeof window !== "undefined" && parallax > 0) {
     const nx = cursor.x / (window.innerWidth || 1) - 0.5;   // -0.5..0.5
@@ -69,21 +68,40 @@ export default function Astronauts({
     py = ny * parallax * 0.7;
   }
 
-  // Build item list (explicit or auto-generated)
-  const defaults = useMemo(() => {
-    if (Array.isArray(items) && items.length) return items;
-    const arr = [];
-    for (let i = 0; i < count; i++) {
-      const s = [72, 56, 46][i % 3] ?? Math.max(36, 72 - i * 6);
-      const r = radiusBase + (Math.random() * 2 - 1) * radiusJitter;
-      const speed = (i % 2 === 0 ? 1 : -1) * (0.18 + Math.random() * 0.16);
-      const delay = i * 0.6;
-      const ellipse = 0.9 + (Math.random() * 0.4 - 0.2);
-      const glow = 0.26 + Math.random() * 0.12;
-      arr.push({ size: s, r, speed, delay, ellipse, glow });
+  // --- Items: generate once on client to avoid SSR random mismatch ---
+  const itemsRef = useRef(null);
+  const [, force] = useState(0);
+  useEffect(() => {
+    if (itemsRef.current) return;
+    if (Array.isArray(items) && items.length) {
+      itemsRef.current = items;
+    } else {
+      // deterministic-ish but client-only generation
+      const arr = [];
+      // simple seeded RNG (mulberry32) to be stable across re-renders in this session
+      let seed = Math.imul(37, count + Math.floor(radiusBase) + Math.floor(radiusJitter));
+      const rand = () => {
+        // mulberry32
+        seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+        let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+        t ^= t + Math.imul(t ^ t >>> 7, 61 | t);
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+      };
+      for (let i = 0; i < count; i++) {
+        const s = [72, 56, 46][i % 3] ?? Math.max(36, 72 - i * 6);
+        const r = radiusBase + (rand() * 2 - 1) * radiusJitter;
+        const speed = (i % 2 === 0 ? 1 : -1) * (0.18 + rand() * 0.16);
+        const delay = i * 0.6;
+        const ellipse = 0.9 + (rand() * 0.4 - 0.2);
+        const glow = 0.26 + rand() * 0.12;
+        arr.push({ size: s, r, speed, delay, ellipse, glow });
+      }
+      itemsRef.current = arr;
     }
-    return arr;
+    force((n) => (n + 1) % 10); // trigger one paint after mount
   }, [items, count, radiusBase, radiusJitter]);
+
+  const list = itemsRef.current || [];
 
   return (
     <div
@@ -91,9 +109,15 @@ export default function Astronauts({
       style={{ zIndex, contain: "layout style paint" }}
       aria-hidden="true"
     >
-      {showStars && <Starfield opacity={starOpacity} twinkle={starTwinkle} parallax={{ x: px * 0.3, y: py * 0.2 }} />}
+      {showStars && (
+        <Starfield
+          opacity={starOpacity}
+          twinkle={starTwinkle}
+          parallax={{ x: px * 0.3, y: py * 0.2 }}
+        />
+      )}
 
-      {defaults.map((cfg, i) => (
+      {list.map((cfg, i) => (
         <OrbitSprite
           key={i}
           center={center}
@@ -232,13 +256,15 @@ function AstronautSVG() {
 
 /** GPU-friendly starfield with gentle twinkle + optional parallax */
 function Starfield({ opacity = 0.15, twinkle = true, parallax = { x: 0, y: 0 } }) {
+  const x = parallax?.x || 0;
+  const y = parallax?.y || 0;
   return (
     <div
       className="absolute inset-0"
       style={{
         opacity,
         willChange: "transform, opacity",
-        transform: `translate3d(${parallax.x || 0}px, ${parallax.y || 0}px, 0)`,
+        transform: `translate3d(${x}px, ${y}px, 0)`,
         backgroundImage:
           // three layers at different densities for a bit of depth
           "radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,.95), transparent 60%)," +

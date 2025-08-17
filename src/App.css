@@ -1,0 +1,112 @@
+/* ------------------------------------------------------------------
+   app.css  — global styles + animations
+   Tailwind v4: keep @import "tailwindcss";
+   (If you’re on Tailwind v3, replace with:
+      @tailwind base;
+      @tailwind components;
+      @tailwind utilities;
+   )
+-------------------------------------------------------------------*/
+@import "tailwindcss";
+
+/* ---------- Layout foundation ---------- */
+html, body, #root, #__next {
+  height: 100%;
+}
+html, body { min-height: 100%; } /* guard against 0px viewport glitches */
+html, body {
+  margin: 0;
+  background: #000;                    /* prevent white flash */
+  overscroll-behavior-y: none;         /* avoid vertical scroll chaining */
+  -webkit-text-size-adjust: 100%;      /* iOS text scaling stability */
+}
+#root, #__next { isolation: isolate; } /* stable stacking for negative z-index layers */
+
+/* Prefer dark native UI controls */
+:root { color-scheme: dark; }
+
+/* ---------- Safe area vars ---------- */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+}
+
+/* ---------- Mobile-only: hide scrollbar rails (scroll still works) ---------- */
+@media (max-width: 767px) {
+  /* Firefox */
+  html, body { scrollbar-width: none; }
+  /* WebKit */
+  html::-webkit-scrollbar, body::-webkit-scrollbar { width: 0; height: 0; }
+  /* iOS momentum scrolling */
+  body { -webkit-overflow-scrolling: touch; }
+}
+
+/* ---------- Animations & utilities ---------- */
+/* Gradient sweep (used for top bar, etc.) */
+@keyframes gradient-x {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.animate-gradient-x {
+  background-size: 200% 200%;
+  animation: gradient-x 8s ease infinite;
+}
+
+/* Slow spin (GPU nudge keeps transform alive) */
+@keyframes spin-slow {
+  from { transform: rotate(0.001deg); }
+  to   { transform: rotate(360deg); }
+}
+.animate-spin-slow { animation: spin-slow 14s linear infinite; }
+
+/* Ripple glow (optional cursor-follow effects) */
+@keyframes ripple-glow {
+  0%   { opacity: .28; transform: translate(-50%, -50%) scale(.9); }
+  60%  { opacity: .15; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.35); }
+}
+
+/* Aurora helpers (if referenced by inline styles/classes) */
+@keyframes aurora-pan {
+  0%   { transform: translateX(-20%) translateY(0) rotate(0.001deg); }
+  50%  { transform: translateX(20%) translateY(-6%) rotate(0.001deg); }
+  100% { transform: translateX(-20%) translateY(0) rotate(0.001deg); }
+}
+@keyframes aurora-sway {
+  0%   { transform: translateY(0) skewX(-8deg) rotate(0.001deg); }
+  50%  { transform: translateY(-8%) skewX(-12deg) rotate(0.001deg); }
+  100% { transform: translateY(0) skewX(-8deg) rotate(0.001deg); }
+}
+@keyframes aurora-hue {
+  0%   { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+/* ---------- Accessibility & polish ---------- */
+:focus-visible {
+  outline: 2px solid rgba(99,102,241,.75); /* indigo-ish */
+  outline-offset: 2px;
+  border-radius: .375rem;
+}
+* { -webkit-tap-highlight-color: transparent; } /* optional mobile QoL */
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .animate-spin-slow,
+  .animate-gradient-x,
+  [style*="aurora-pan"],
+  [style*="aurora-sway"],
+  [style*="aurora-hue"],
+  [style*="ripple-glow"] {
+    animation: none !important;
+  }
+}
+
+/* Print */
+@media print {
+  html, body { background: #fff !important; }
+}

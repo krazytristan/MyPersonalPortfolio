@@ -18,57 +18,57 @@ export default function Aurora({
   };
   const cols = palettes[active] || palettes.home;
 
-  // base style shared by ribbons
+  // viewport (SSR-safe) + update on resize
+  const vw = typeof window !== "undefined" ? window.innerWidth : 1;
+  const vh = typeof window !== "undefined" ? window.innerHeight : 1;
+
+  // normalize 0..1 relative to viewport
+  const nx = vw ? (cursor.x / vw - 0.5) : 0;
+  const ny = vh ? (cursor.y / vh - 0.5) : 0;
+  const m = reducedMotion ? 0 : 1; // motion multiplier
+
+  // shared ribbon style
   const baseStyle = {
     position: "absolute",
     width: "120vmax",
     height: "60vmax",
-    filter: `blur(${blur}px) saturate(130%)`,
+    filter: `blur(${blur}px) saturate(130%) hue-rotate(var(--hue, 0deg))`,
     mixBlendMode: "screen",
     opacity,
-    transform: "skewX(-10deg) translateZ(0)",
+    // keep skew in the static transform; the rest is via CSS vars
+    transform: "skewX(-10deg) translate3d(var(--tx,0px), calc(var(--ty,0px) + var(--sway,0px)), 0)",
     backgroundImage: `linear-gradient(90deg, ${cols.join(", ")})`,
     backgroundSize: "200% 100%",
     borderRadius: "9999px",
     willChange: "transform, background-position, filter, opacity",
     WebkitMaskImage:
       "radial-gradient(100% 70% at 50% 50%, #000 60%, transparent 100%)",
-            maskImage:
+    maskImage:
       "radial-gradient(100% 70% at 50% 50%, #000 60%, transparent 100%)",
   };
-
-  // simple parallax using the cursor you already pass in
-  // normalize 0..1 relative to viewport (guard SSR)
-  const vw = typeof window !== "undefined" ? window.innerWidth : 1;
-  const vh = typeof window !== "undefined" ? window.innerHeight : 1;
-  const nx = vw ? (cursor.x / vw - 0.5) : 0;
-  const ny = vh ? (cursor.y / vh - 0.5) : 0;
-
-  const m = reducedMotion ? 0 : 1; // motion multiplier
 
   return (
     <div
       className="pointer-events-none fixed inset-0 -z-[9] overflow-hidden"
       aria-hidden
-      style={{
-        // timing vars the CSS keyframes read
-        ["--spd"]: String(speed),
-      }}
+      style={{ ["--spd"]: String(speed) }}
     >
       <div style={{ position: "absolute", inset: 0 }}>
-        {/* ribbon A */}
+        {/* Ribbon A */}
         <span
           style={{
             ...baseStyle,
             top: "-12%",
             left: "-10%",
-            transform: `skewX(-10deg) translate3d(${nx * 20 * m}px, ${ny * 10 * m}px, 0)`,
+            // cursor parallax via vars; keyframes animate --hue only here
+            ["--tx"]: `${nx * 20 * m}px`,
+            ["--ty"]: `${ny * 10 * m}px`,
             animation: reducedMotion
               ? "none"
-              : "aurora-pan calc(22s/var(--spd)) ease-in-out infinite alternate, aurora-hue calc(60s/var(--spd)) linear infinite",
+              : "aurora-pan calc(22s/var(--spd)) ease-in-out infinite alternate, hue-spin calc(60s/var(--spd)) linear infinite",
           }}
         />
-        {/* ribbon B (deeper, larger) */}
+        {/* Ribbon B (deeper, larger + gentle sway via --sway) */}
         <span
           style={{
             ...baseStyle,
@@ -76,13 +76,14 @@ export default function Aurora({
             right: "-15%",
             height: "70vmax",
             opacity: opacity * 0.5,
-            transform: `skewX(-10deg) translate3d(${nx * -30 * m}px, ${ny * 18 * m}px, 0)`,
+            ["--tx"]: `${nx * -30 * m}px`,
+            ["--ty"]: `${ny * 18 * m}px`,
             animation: reducedMotion
               ? "none"
-              : "aurora-pan calc(28s/var(--spd)) ease-in-out -6s infinite alternate, aurora-sway calc(16s/var(--spd)) ease-in-out infinite alternate, aurora-hue calc(80s/var(--spd)) linear infinite",
+              : "aurora-pan calc(28s/var(--spd)) ease-in-out -6s infinite alternate, swayY calc(16s/var(--spd)) ease-in-out infinite alternate, hue-spin calc(80s/var(--spd)) linear infinite",
           }}
         />
-        {/* ribbon C (wide base wash) */}
+        {/* Ribbon C (wide base wash) */}
         <span
           style={{
             ...baseStyle,
@@ -91,14 +92,15 @@ export default function Aurora({
             width: "140vmax",
             height: "50vmax",
             opacity: opacity * 0.45,
-            transform: `skewX(-10deg) translate3d(${nx * 16 * m}px, ${ny * -12 * m}px, 0)`,
+            ["--tx"]: `${nx * 16 * m}px`,
+            ["--ty"]: `${ny * -12 * m}px`,
             animation: reducedMotion
               ? "none"
-              : "aurora-pan calc(30s/var(--spd)) ease-in-out -12s infinite alternate, aurora-hue calc(100s/var(--spd)) linear infinite",
+              : "aurora-pan calc(30s/var(--spd)) ease-in-out -12s infinite alternate, hue-spin calc(100s/var(--spd)) linear infinite",
           }}
         />
 
-        {/* cursor ripple */}
+        {/* Cursor ripple */}
         {ripple && (
           <span
             style={{
@@ -118,19 +120,21 @@ export default function Aurora({
         )}
       </div>
 
-      {/* keyframes (scoped) */}
+      {/* Scoped keyframes (animate variables instead of overriding transform/filter) */}
       <style>{`
         @keyframes aurora-pan {
-          0%   { background-position: 0% 50%; transform: skewX(-10deg); }
-          100% { background-position: 100% 50%; transform: skewX(-10deg); }
+          0%   { background-position: 0% 50%; }
+          100% { background-position: 100% 50%; }
         }
-        @keyframes aurora-sway {
-          0%   { transform: skewX(-10deg) translateY(0); }
-          100% { transform: skewX(-10deg) translateY(-6%); }
+        /* Animate a vertical sway via CSS variable */
+        @keyframes swayY {
+          0%   { --sway: 0px; }
+          100% { --sway: -6%; }
         }
-        @keyframes aurora-hue {
-          0% { filter: hue-rotate(0deg); }
-          100% { filter: hue-rotate(360deg); }
+        /* Animate hue as a variable, then use it in filter */
+        @keyframes hue-spin {
+          0%   { --hue: 0deg; }
+          100% { --hue: 360deg; }
         }
         @keyframes ripple-glow {
           0%   { opacity: .65; transform: translate(-50%, -50%) scale(0.96); }
@@ -138,10 +142,7 @@ export default function Aurora({
           100% { opacity: .0; transform: translate(-50%, -50%) scale(1.12); }
         }
         @media (prefers-reduced-motion: reduce) {
-          span[style*="aurora-pan"],
-          span[style*="aurora-sway"],
-          span[style*="aurora-hue"],
-          span[style*="ripple-glow"] {
+          span {
             animation: none !important;
           }
         }

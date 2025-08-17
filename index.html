@@ -1,44 +1,80 @@
 <!doctype html>
 <html lang="en" class="dark" data-reduced-motion="false">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
     <title>Tristan Jorge Cuartero — Portfolio</title>
 
     <!-- Primary Meta -->
-    <meta name="description" content="Modern animated portfolio with aurora, solar system, and astronaut effects. Created by Tristan Jorge Cuartero.">
-    <meta name="theme-color" content="#0f172a">
-    <meta name="color-scheme" content="dark light">
+    <meta
+      name="description"
+      content="Modern animated portfolio with aurora, solar system, and astronaut effects. Created by Tristan Jorge Cuartero."
+    />
+    <meta name="robots" content="index,follow" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="view-transition" content="same-origin" />
+
+    <!-- Theme color: light/dark aware -->
+    <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+
+    <!-- Canonical (ABSOLUTE URL) -->
+    <link rel="canonical" href="https://tristanjorgecuartero.com/" />
+
+    <!-- Preconnect (tiny win for first hop) -->
+    <link rel="preconnect" href="https://tristanjorgecuartero.com" crossorigin />
 
     <!-- Open Graph -->
-    <meta property="og:title" content="Tristan Jorge Cuartero — Portfolio">
-    <meta property="og:description" content="Modern animated portfolio with aurora, solar system, and astronaut effects.">
-    <meta property="og:type" content="website">
-    <meta property="og:image" content="/preview.png">
-    <!-- Use absolute URL if you have one to avoid OG validators warning -->
-    <meta property="og:url" content="/">
+    <meta property="og:title" content="Tristan Jorge Cuartero — Portfolio" />
+    <meta
+      property="og:description"
+      content="Modern animated portfolio with aurora, solar system, and astronaut effects."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Tristan Jorge Cuartero — Portfolio" />
+    <meta property="og:url" content="https://tristanjorgecuartero.com/" />
+    <meta property="og:image" content="https://tristanjorgecuartero.com/preview.png" />
+    <meta property="og:image:alt" content="Preview of Tristan Jorge Cuartero's portfolio" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
 
     <!-- Twitter -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Tristan Jorge Cuartero — Portfolio">
-    <meta name="twitter:description" content="Modern animated portfolio with aurora, solar system, and astronaut effects.">
-    <meta name="twitter:image" content="/preview.png">
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Tristan Jorge Cuartero — Portfolio" />
+    <meta
+      name="twitter:description"
+      content="Modern animated portfolio with aurora, solar system, and astronaut effects."
+    />
+    <meta name="twitter:image" content="https://tristanjorgecuartero.com/preview.png" />
 
     <!-- Icons & PWA -->
-    <link rel="icon" type="image/png" href="/favicon.png">
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="manifest" href="/site.webmanifest">
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- Platform extras -->
+    <meta name="msapplication-TileColor" content="#0f172a" />
+    <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#0f172a" />
 
-    <!-- Prevent white flash before React/Tailwind mount -->
+    <!-- Preloads (optional) -->
+    <link rel="preload" href="/preview.png" as="image" fetchpriority="low" />
+    <link rel="preload" href="/images/BSU_6102.jpg" as="image" imagesrcset="/images/BSU_6102.jpg 1x" />
+
+    <!-- Base paint (prevents white flash before React/Tailwind mount) -->
     <style>
       html, body, #root { height: 100%; margin: 0; padding: 0; }
       body { background: #000; }
-      /* Optional fade-in after hydration:
+      /* Optional: fade-in after hydration
       html { opacity: 0; transition: opacity .24s ease }
       html.app-ready { opacity: 1 } */
     </style>
 
-    <!-- Apply saved theme ASAP (avoids FOUC) + robust matchMedia fallback -->
+    <!-- Early theme + reduced-motion bootstrap (no FOUC) -->
     <script>
       (function () {
         try {
@@ -46,7 +82,9 @@
 
           // Theme
           var saved = localStorage.getItem("theme");
-          var prefersDark = (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          var prefersDark =
+            window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches;
           var mode = saved || (prefersDark ? "dark" : "light");
           html.classList.toggle("dark", mode === "dark");
 
@@ -54,29 +92,44 @@
           if (window.matchMedia) {
             var mq = window.matchMedia("(prefers-reduced-motion: reduce)");
             html.setAttribute("data-reduced-motion", String(!!mq.matches));
-
             var onChange = function (e) {
-              html.setAttribute("data-reduced-motion", String(!!(e.matches)));
+              html.setAttribute("data-reduced-motion", String(!!e.matches));
             };
-
             if (typeof mq.addEventListener === "function") {
               mq.addEventListener("change", onChange);
             } else if (typeof mq.addListener === "function") {
-              // Safari < 14
-              mq.addListener(onChange);
+              mq.addListener(onChange); // Safari < 14
             }
           }
-        } catch (e) {}
+        } catch (e) { /* no-op */ }
       })();
     </script>
 
-    <!-- Minimal, valid JSON-LD (keeps validators quiet) -->
+    <!-- JSON-LD: Site + Person (absolute URLs) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Person",
+        "name": "Tristan Jorge Cuartero",
+        "url": "https://tristanjorgecuartero.com/",
+        "image": "https://tristanjorgecuartero.com/preview.png",
+        "jobTitle": "Full-Stack Developer & Educator",
+        "knowsAbout": ["Web Development", "AI/ML", "Accessibility", "JavaScript", "React"],
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": "Lipa City",
+          "addressRegion": "Batangas",
+          "addressCountry": "PH"
+        },
+        "sameAs": []
+      }
+    </script>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "WebSite",
         "name": "Tristan Jorge Cuartero — Portfolio",
-        "url": "/",
+        "url": "https://tristanjorgecuartero.com/",
         "inLanguage": "en"
       }
     </script>
@@ -86,10 +139,16 @@
 
     <noscript>
       <style>
-        .no-js-msg { color: #e5e7eb; background:#0b1020; padding: 1rem; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+        .no-js-msg {
+          color: #e5e7eb;
+          background: #0b1020;
+          padding: 1rem;
+          font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        }
       </style>
       <div class="no-js-msg">
-        This site is best experienced with JavaScript enabled. Please enable JavaScript to view the interactive portfolio.
+        This site is best experienced with JavaScript enabled. Please enable JavaScript to view the interactive
+        portfolio.
       </div>
     </noscript>
 
